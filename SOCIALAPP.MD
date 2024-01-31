@@ -205,3 +205,56 @@ We get this by calling the `useDispatch` hook from React-Redux.
 We also need to import the `postAdded` action creator into this file.
 
 Once we have the dispatch function available in our component, we can call `dispatch(postAdded())` in a click handler. 
+
+
+```
+import React, { useState } from "react";
+
+import { useDispatch } from "react-redux";
+import { nanoid } from "@reduxjs/toolkit";
+
+import { postAdded } from "./postsSlice";
+
+export const AddPostForm = () => {
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+
+  const dispatch = useDispatch();
+
+  const onTitleChanged = (e) => setTitle(e.target.value);
+  const onContentChanged = (e) => setContent(e.target.value);
+
+  const onSavedPostClicked = () => {
+    if (title && content) {
+      dispatch(postAdded({ id: nanoid(), title, content }));
+    }
+    setTitle("");
+    setContent("");
+  };
+  return (
+    <section>
+      <h2>Add a New Post</h2>
+      <form>
+        <label htmlFor="postTitle">Post Title:</label>
+        <input
+          type="text"
+          id="postTitle"
+          name="postTitle"
+          value={title}
+          onChange={onTitleChanged}
+        />
+        <label htmlFor="postContent">Content:</label>
+        <textarea
+          id="postContent"
+          name="postContent"
+          value={content}
+          onChange={onContentChanged}
+        />
+        <button type="button" onClick={onSavedPostClicked}>
+          Save Post
+        </button>
+      </form>
+    </section>
+  );
+};
+```
