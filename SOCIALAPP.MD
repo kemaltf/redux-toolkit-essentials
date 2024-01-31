@@ -525,4 +525,70 @@ One last thing, we should also add a new link to our `SingePostPage`.
         </Link>
 ```
 
+# Preparing Action Payloan
+Before moving forward, let's examine what we have created. Previously, we have created postAdded, where before dispatching the action, we perform specific tasks:
+1. Generating a unique ID for the latest post.
+2. Defining the shape of the payload object {id, title, content}.
 
+### Issues arise. 
+When creating the ID (or performing additional actions in the React component), and then passing the generated payload object into the postAdded action creator, this leads to several problems:
+1. Duplication of logic, as we might repeat the same logic to prepare the complex payload.
+2. Component dependency, as we need to know the payload structure for this action.
+
+### Solution: 
+Centralize the preparation of action payloads. This makes it easy for us to maintain and ensure consistency across various applications to perform the same dispatch. This can be achieved using middleware or other patterns.
+
+If we were writing the postAdded action creator by hand, we could have put the setup logic inside of it ourselves:
+
+``` js
+// hand-written action creator
+function postAdded(title, content) {
+  const id = nanoid()
+  return {
+    type: 'posts/postAdded',
+    payload: { id, title, content }
+  }
+}
+```
+FORTUNATELY, Redux Toolkit's `createSlice` is generating these action creators for us. That makes the code shorter because we don't have to write them ourselves, but we still need a way to customize the contents of action.payload.
+
+Fortunately, `createSlice` lets us define a "prepare callback" function when we write a reducer. The "prepare callback" function can take multiple arguments, generate random values like unique IDs, and run whatever other synchronous logic is needed to decide what values go into the action object. It should then return an object with the payload field inside. (The return object may also contain a `meta` field, which can be used to add extra descriptive values to the action, and an error field, which should be a boolean indicating whether this action represents some kind of an error.)
+
+Inside of the reducers field in createSlice, we can define one of the fields as an object that looks like {reducer, prepare}:
+
+``` js
+const postsSlice = createSlice({
+  name: 'posts',
+  initialState,
+  reducers: {
+    postAdded: {
+      reducer(state, action) {
+        state.push(action.payload)
+      },
+      prepare(title, content) {
+        return {
+          payload: {
+            id: nanoid(),
+            title,
+            content
+          }
+        }
+      }
+    }
+    // other reducers here
+  }
+})
+```
+
+Now our component doesn't have to worry about what the payload object looks like - the action creator will take care of putting it together the right way. So, we can update the component so that it passes in `title` and `content` as arguments when it dispatches postAdded:
+
+``` js
+// features/posts/AddPostForm.js
+const onSavePostClicked = () => {
+  if (title && content) {
+    dispatch(postAdded(title, content))
+    setTitle('')
+    setContent('')
+  }
+}
+```
