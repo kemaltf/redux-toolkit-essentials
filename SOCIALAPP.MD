@@ -206,8 +206,7 @@ We also need to import the `postAdded` action creator into this file.
 
 Once we have the dispatch function available in our component, we can call `dispatch(postAdded())` in a click handler. 
 
-
-```
+ ``` js
 import React, { useState } from "react";
 
 import { useDispatch } from "react-redux";
@@ -257,4 +256,130 @@ export const AddPostForm = () => {
     </section>
   );
 };
+```
+
+# 4. Showing single post
+
+## Create single post page
+
+First, we need to add a new `SinglePostPage` component to our `posts` feature folder. We'll use React Router to show this component when the page URL looks like `/posts/123`, where the `123` part should be the ID of the post we want to show.
+
+``` js
+// features/posts/SinglePostPage.js
+import React from 'react'
+import { useSelector } from 'react-redux'
+
+export const SinglePostPage = ({ match }) => {
+  const { postId } = match.params
+
+  const post = useSelector(state =>
+    state.posts.find(post => post.id === postId)
+  )
+
+  if (!post) {
+    return (
+      <section>
+        <h2>Post not found!</h2>
+      </section>
+    )
+  }
+
+  return (
+    <section>
+      <article className="post">
+        <h2>{post.title}</h2>
+        <p className="post-content">{post.content}</p>
+      </article>
+    </section>
+  )
+}
+```
+
+Once we have that postId value, we can use it inside a selector function to find the right post object from the Redux store. We know that state.posts should be an array of all post objects, so we can use the Array.find() function to loop through the array and return the post entry with the ID we're looking for.
+
+> It's important to note that the component will re-render any time the value returned from useSelector changes to a new reference.     
+
+
+## Adding the Single Post Route
+
+``` js
+// App.js
+import { AddPostForm } from "./features/posts/AddPostForm";
+import { PostsList } from "./features/posts/PostList";
+import { SinglePostPage } from "./features/posts/SinglePostPage";
+import "./styles.css";
+import {
+  BrowserRouter as Router,
+  Route,
+  Switch,
+  Redirect,
+} from "react-router-dom";
+import React from "react";
+
+export default function App() {
+  return (
+    <div className="App">
+      <Router>
+        <Switch>
+          <Route
+            exact
+            path="/"
+            render={() => (
+              <React.Fragment>
+                <AddPostForm />
+                <PostsList />
+              </React.Fragment>
+            )}
+          />
+          <Route exact path="/posts/:postId" component={SinglePostPage} />
+
+          <Redirect to="/" />
+        </Switch>
+      </Router>
+    </div>
+  );
+}
+
+```
+Then, in `<PostsList>`, we'll update the list rendering logic to include a `<Link>` that routes to that specific post:
+
+``` js
+...
+import { Link } from "react-router-dom";
+export const PostsList = () => {
+  ...
+  const renderedPosts = posts.map((post) => (
+    <article className="post-excerpt" key={post.id}>
+      <h3>{post.title}</h3>
+      <p className="post-content">{post.content.substring(0, 100)}</p>{" "}
+      <Link to={`/posts/${post.id}`} className="button muted-button">
+        View Post
+      </Link>
+    </article>
+  ));
+```
+And we also need to create `Navbar` component as well
+
+``` js
+// features/Navbar/Navbar.js
+import React from "react";
+
+import { Link } from "react-router-dom";
+
+export const Navbar = () => {
+  return (
+    <nav>
+      <section>
+        <h1>Redux Essentials Example</h1>
+
+        <div className="navContent">
+          <div className="navLinks">
+            <Link to="/">Posts</Link>
+          </div>
+        </div>
+      </section>
+    </nav>
+  );
+};
+
 ```
