@@ -55,3 +55,49 @@ export default configureStore({
 })
 ```
 > This tells Redux that we want our top-level state object to have a field named `posts` inside, and all the data for state.posts will be updated by the `postsReducer` function when actions are dispatched.
+
+
+# 2. Showing the Posts List
+
+Create a new file named PostsList.js.
+
+we're going to render a list of posts, we need to get the data from somewhere. React components can read data from the Redux store using the useSelector hook from the React-Redux library. **The "selector functions" that you write will be called with the entire Redux state object as a parameter, and should return the specific data.**
+
+``` js
+// features/posts/PostsList.js
+import React from 'react'
+import { useSelector } from 'react-redux'
+
+export const PostsList = () => {
+  const posts = useSelector(state => state.posts)
+
+  const renderedPosts = posts.map(post => (
+    <article className="post-excerpt" key={post.id}>
+      <h3>{post.title}</h3>
+      <p className="post-content">{post.content.substring(0, 100)}</p>
+    </article>
+  ))
+
+  return (
+    <section className="posts-list">
+      <h2>Posts</h2>
+      {renderedPosts}
+    </section>
+  )
+}
+```
+
+update App.js
+```
+import { PostsList } from "./features/posts/PostList";
+import "./styles.css";
+
+export default function App() {
+  return (
+    <div className="App">
+      <PostsList />
+    </div>
+  );
+}
+
+```
