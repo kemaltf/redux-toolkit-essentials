@@ -525,7 +525,7 @@ One last thing, we should also add a new link to our `SingePostPage`.
         </Link>
 ```
 
-# Preparing Action Payloan
+# Preparing Action Payload
 Before moving forward, let's examine what we have created. Previously, we have created postAdded, where before dispatching the action, we perform specific tasks:
 1. Generating a unique ID for the latest post.
 2. Defining the shape of the payload object {id, title, content}.
@@ -592,3 +592,159 @@ const onSavePostClicked = () => {
   }
 }
 ```
+
+# Users and Posts
+So far, we only have one slice of state. The logic is defined in `postsSlice.js`, the data is stored in `state.posts`, and all of our components have been related to the posts feature. Real applications will probably have many different slices of state, and several different "feature folders" for the Redux logic and React components.
+
+You can't have a "social media" app if there aren't any other people involved. Let's add the ability to keep track of a list of users in our app, and update the post-related functionality to make use of that data.
+
+## Adding a Users Slice
+
+Since the concept of "users" is different than the concept of "posts", we want to keep the code and data for the users separated from the code and data for posts. We'll add a new `features/users` folder, and put a `usersSlice` file in there. Like with the posts slice, for now we'll add some initial entries so that we have data to work with.
+
+``` js
+// features/users/usersSlice.js
+import { createSlice } from "@reduxjs/toolkit";
+
+const initialState = [
+  { id: "0", name: "Tianna Jenkins" },
+  { id: "1", name: "Kevin Grant" },
+  { id: "2", name: "Madison Price" },
+];
+
+const usersSlice = createSlice({
+  name: "users",
+  initialState,
+  reducers: {},
+});
+
+export default usersSlice.reducer;
+
+```
+
+we'll import the usersReducer into our store file and add it to the store setup:
+``` js
+// app/store.js
+import { configureStore } from '@reduxjs/toolkit'
+
+import postsReducer from '../features/posts/postsSlice'
+import usersReducer from '../features/users/usersSlice'
+
+export default configureStore({
+  reducer: {
+    posts: postsReducer,
+    users: usersReducer
+  }
+})
+```
+
+## Adding Authors for Posts
+
+Every post in our app was written by one of our users, and every time we add a new post, we should keep track of which user wrote that post. In a real app, we'd have some sort of a `state.currentUser` field that keeps track of the current logged-in user, and use that information whenever they add a post.
+
+To keep things simpler for this example, we'll update our `<AddPostForm>` component so that we can select a user from a dropdown list, and we'll include that user's ID as part of the post.
+
+First, we need to update our `postAdded` action creator to accept a user ID as an argument, and include that in the action.
+
+We'll also update the existing post entries in initialState to have a post.user field with one of the example user IDs.
+
+``` js
+// features/posts/postsSlice.js
+reducers: {
+    postAdded: {
+      reducer(state, action) {
+        state.push(action.payload)
+      },
+      prepare(title, content, userId) {
+        return {
+          payload: {
+            id: nanoid(),
+            title,
+            content,
+            user: userId
+          }
+        }
+      }
+    }
+    // other reducers
+  }
+```
+
+Now, in our `<AddPostForm>`, we can read the list of users from the store with useSelector and show them as a dropdown.
+We'll then take the ID of the selected user and pass that to the `postAdded` action creator. 
+
+``` js
+// features/posts/AddPostForm.js
+//...
+import { useDispatch, useSelector } from 'react-redux'
+//...
+
+export const AddPostForm = () => {
+  //...
+  const [userId, setUserId] = useState('')
+
+  const dispatch = useDispatch()
+
+  const users = useSelector(state => state.users)
+
+  // ...
+  const onAuthorChanged = e => setUserId(e.target.value)
+
+  const onSavePostClicked = () => {
+    if (title && content) {
+      dispatch(postAdded(title, content, userId))
+      setTitle('')
+      setContent('')
+    }
+  }
+
+  const canSave = Boolean(title) && Boolean(content) && Boolean(userId)
+
+  const usersOptions = users.map(user => (
+    <option key={user.id} value={user.id}>
+      {user.name}
+    </option>
+  ))
+
+  return (
+    <section>
+    {/* ... */}
+        <label htmlFor="postAuthor">Author:</label>
+        <select id="postAuthor" value={userId} onChange={onAuthorChanged}>
+          <option value=""></option>
+          {usersOptions}
+        </select>
+        <label htmlFor="postContent">Content:</label>
+        <textarea
+          id="postContent"
+          name="postContent"
+          value={content}
+          onChange={onContentChanged}
+        />
+        <button type="button" onClick={onSavePostClicked} disabled={!canSave}>
+          Save Post
+        </button>
+      </form>
+    </section>
+  )
+}
+```
+
+Now, we need a way to show the name of the post's author inside of our post list items and `<SinglePostPage>`
+
+``` js
+// features/posts/PostAuthor.js
+import React from 'react'
+import { useSelector } from 'react-redux'
+
+export const PostAuthor = ({ userId }) => {
+  const author = useSelector(state =>
+    state.users.find(user => user.id === userId)
+  )
+
+  return <span>by {author ? author.name : 'Unknown author'}</span>
+}
+```
+
+We can now import the `PostAuthor` component into both `PostsList.js` and `SinglePostPage.js`, and render it as <`PostAuthor userId={post.user} />`, and every time we add a post entry, the selected user's name should show up inside of the rendered post.
+
