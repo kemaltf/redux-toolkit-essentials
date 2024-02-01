@@ -11,8 +11,12 @@ import {
   Redirect,
 } from "react-router-dom";
 import React from "react";
+import { store } from "./app/store";
+import { fetchUsers } from "./features/users/usersSlice";
 
 export default function App() {
+  store.dispatch(fetchUsers());
+
   return (
     <div className="App">
       <Router>
