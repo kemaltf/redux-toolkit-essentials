@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { selectAllPosts } from "./postsSlice";
 
 import { useDispatch, useSelector } from "react-redux";
 // import { nanoid } from "@reduxjs/toolkit";
@@ -11,7 +12,7 @@ export const AddPostForm = () => {
   const [userId, setUserId] = useState("");
 
   const dispatch = useDispatch();
-  const users = useSelector((state) => state.users);
+  const users = useSelector(selectAllPosts);
 
   const onTitleChanged = (e) => setTitle(e.target.value);
   const onContentChanged = (e) => setContent(e.target.value);

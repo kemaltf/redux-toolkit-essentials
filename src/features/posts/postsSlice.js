@@ -1,36 +1,30 @@
-import { createSlice } from "@reduxjs/toolkit";
-import { nanoid } from "@reduxjs/toolkit";
-import { sub } from "date-fns";
+import { createSlice, createAsyncThunk, nanoid } from "@reduxjs/toolkit";
+import axios from "axios";
 
-const initialState = [
-  {
-    id: "1",
-    title: "First Post!",
-    content: "Hello!",
-    user: "1",
-    date: sub(new Date(), { minutes: 10 }).toISOString(),
-    reactions: { thumbsUp: 0, hooray: 0, heart: 0, rocket: 0, eyes: 0 },
-  },
-  {
-    id: "2",
-    title: "Second Post",
-    content: "More text",
-    user: "2",
-    date: sub(new Date(), { minutes: 5 }).toISOString(),
-    reactions: { thumbsUp: 0, hooray: 0, heart: 0, rocket: 0, eyes: 0 },
-  },
-];
+// const initialState = [
+//   {
+//     id: "1",
+//     title: "First Post!",
+//     content: "Hello!",
+//     user: "1",
+//     date: sub(new Date(), { minutes: 10 }).toISOString(),
+//     reactions: { thumbsUp: 0, hooray: 0, heart: 0, rocket: 0, eyes: 0 },
+//   },
+// ];
+
+const initialState = {
+  posts: [],
+  status: "idle",
+  error: null,
+};
 
 const postsSlice = createSlice({
   name: "posts",
   initialState,
   reducers: {
-    // postAdded(state, action) {
-    //   state.push(action.payload);
-    // },
     postAdded: {
       reducer(state, action) {
-        state.push(action.payload);
+        state.posts.push(action.payload);
       },
       prepare(title, content, userId) {
         return {
@@ -47,7 +41,7 @@ const postsSlice = createSlice({
     },
     postUpdated(state, action) {
       const { id, title, content } = action.payload;
-      const existingPost = state.find((post) => post.id === id);
+      const existingPost = state.posts.find((post) => post.id === id);
       if (existingPost) {
         existingPost.title = title;
         existingPost.content = content;
@@ -61,8 +55,35 @@ const postsSlice = createSlice({
       }
     },
   },
+  extraReducers(builder) {
+    builder
+      .addCase(fetchPosts.pending, (state, action) => {
+        state.status = "loading";
+      })
+      .addCase(fetchPosts.fulfilled, (state, action) => {
+        state.status = "succeeded";
+        // Add any fetched posts to the array
+        console.log(state.posts, action.payload);
+        state.posts = state.posts.concat(action.payload);
+      })
+      .addCase(fetchPosts.rejected, (state, action) => {
+        state.status = "failed";
+        state.error = action.error.message;
+      });
+  },
 });
 
 export const { postAdded, postUpdated, reactionAdded } = postsSlice.actions;
+
+// Maybe you will be confused, the first posts are posts created automatically by Redux (which taken from the names are slice posts), the second posts are slices.
+export const selectAllPosts = (state) => state.posts.posts;
+
+export const selectPostById = (state, postId) =>
+  state.posts.posts.find((post) => post.id === postId);
+
+export const fetchPosts = createAsyncThunk("posts/fetchPosts", async () => {
+  const response = await axios.get("https://7c5t2c-5000.csb.app/posts");
+  return response.data;
+});
 
 export default postsSlice.reducer;

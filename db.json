@@ -1,0 +1,18 @@
+{
+  "posts": [
+    {
+      "id": "1",
+      "title": "First Post!",
+      "content": "Hello!",
+      "user": "1",
+      "date": "2024-02-01T16:45:47.920Z",
+      "reactions": {
+        "thumbsUp": 0,
+        "hooray": 0,
+        "heart": 0,
+        "rocket": 0,
+        "eyes": 0
+      }
+    }
+  ]
+}
