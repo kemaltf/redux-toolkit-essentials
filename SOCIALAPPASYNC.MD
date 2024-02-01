@@ -821,3 +821,257 @@ export default function App() {
   );
 }
 ```
+
+# Adding New Posts
+
+## Sending Data with Thunks
+We can use `createAsyncThunk` to help with sending data, not just fetching it. We'll create a thunk that accepts the values from our `<AddPostForm>` as an argument, and makes an HTTP POST call to the fake API to save the data.
+
+In the process, we're going to change how we work with the new post object in our reducers. Currently, our `postsSlice` is creating a new post object in the `prepare` callback for `postAdded`, and generating a new unique ID for that post. In most apps that save data to a server, the server will take care of generating unique IDs and filling out any extra fields, and will usually return the completed data in its response. 
+
+ So, we can send a request body like { title, content, user: userId } to the server, and then take the complete post object it sends back and add it to our postsSlice state.
+
+ ``` js
+ // features/posts/postsSlice.js
+ export const addNewPost = createAsyncThunk(
+  'posts/addNewPost',
+  // The payload creator receives the partial `{title, content, user}` object
+  async initialPost => {
+    // We send the initial data to the fake API server
+    const response = await client.post('/fakeApi/posts', initialPost)
+    // The response includes the complete post object, including unique ID
+    return response.data
+  }
+)
+
+const postsSlice = createSlice({
+  name: 'posts',
+  initialState,
+  reducers: {
+    // The existing `postAdded` reducer and prepare callback were deleted
+    reactionAdded(state, action) {}, // omit logic
+    postUpdated(state, action) {} // omit logic
+  },
+  extraReducers(builder) {
+    // omit posts loading reducers
+    builder.addCase(addNewPost.fulfilled, (state, action) => {
+      // We can directly add the new post object to our posts array
+      state.posts.push(action.payload)
+    })
+  }
+})
+ ```
+
+ ## Checking Thunk Results in Components
+
+ Finally, we'll update <AddPostForm> to dispatch the addNewPost thunk instead of the old postAdded action.
+ Since this is another API call to the server, it will take some time and could fail.
+
+ The addNewPost() thunk will automatically dispatch its pending/fulfilled/rejected actions to the Redux store, which we're already handling. 
+
+  We could track the request status in postsSlice using a second loading enum if we wanted to, but for this example let's keep the loading state tracking limited to the component.
+
+  ```js
+  // AddPostForm
+  import React, { useState } from "react";
+import { selectAllUsers } from "../users/usersSlice";
+
+import { useDispatch, useSelector } from "react-redux";
+// import { nanoid } from "@reduxjs/toolkit";
+
+import { postAdded, addNewPost } from "./postsSlice";
+
+export const AddPostForm = () => {
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [userId, setUserId] = useState("");
+  const [addRequestStatus, setAddRequestStatus] = useState("idle");
+
+  const canSave =
+    [title, content, userId].every(Boolean) && addRequestStatus === "idle";
+  const onSavePostClicked = async () => {
+    if (canSave) {
+      try {
+        setAddRequestStatus("pending");
+        await dispatch(addNewPost({ title, content, user: userId })).unwrap();
+        setTitle("");
+        setContent("");
+        setUserId("");
+      } catch (err) {
+        console.error("Failed to save the post: ", err);
+      } finally {
+        setAddRequestStatus("idle");
+      }
+    }
+  };
+
+  const dispatch = useDispatch();
+  const users = useSelector(selectAllUsers);
+
+  const onTitleChanged = (e) => setTitle(e.target.value);
+  const onContentChanged = (e) => setContent(e.target.value);
+  const onAuthorChanged = (e) => setUserId(e.target.value);
+
+  // const onSavedPostClicked = () => {
+  //   if (title && content) {
+  //     // dispatch(postAdded({ id: nanoid(), title, content }));
+  //     dispatch(postAdded(title, content, userId));
+  //   }
+  //   setTitle("");
+  //   setContent("");
+  // };
+
+  // const canSave = Boolean(title) && Boolean(content) && Boolean(userId);
+  const usersOptions = users.map((user) => (
+    <option key={user.id} value={user.id}>
+      {user.name}
+    </option>
+  ));
+  return (
+    <section>
+      <h2>Add a New Post</h2>
+      <form>
+        <label htmlFor="postTitle">Post Title:</label>
+        <input
+          type="text"
+          id="postTitle"
+          name="postTitle"
+          value={title}
+          onChange={onTitleChanged}
+        />
+        <label htmlFor="postAuthor">Author:</label>
+        <select id="postAuthor" value={userId} onChange={onAuthorChanged}>
+          <option value=""></option>
+          {usersOptions}
+        </select>
+        <label htmlFor="postContent">Content:</label>
+        <textarea
+          id="postContent"
+          name="postContent"
+          value={content}
+          onChange={onContentChanged}
+        />
+        <button type="button" onClick={onSavePostClicked} disabled={!canSave}>
+          Save Post
+        </button>
+      </form>
+    </section>
+  );
+};
+
+  ```
+
+  Update UsersSlice.js
+  ```
+  import { createSlice, createAsyncThunk, nanoid } from "@reduxjs/toolkit";
+import axios from "axios";
+
+// const initialState = [
+//   {
+//     id: "1",
+//     title: "First Post!",
+//     content: "Hello!",
+//     user: "1",
+//     date: sub(new Date(), { minutes: 10 }).toISOString(),
+//     reactions: { thumbsUp: 0, hooray: 0, heart: 0, rocket: 0, eyes: 0 },
+//   },
+// ];
+
+const initialState = {
+  posts: [],
+  status: "idle",
+  error: null,
+};
+
+const postsSlice = createSlice({
+  name: "posts",
+  initialState,
+  reducers: {
+    postAdded: {
+      reducer(state, action) {
+        state.posts.push(action.payload);
+      },
+      prepare(title, content, userId) {
+        return {
+          payload: {
+            id: nanoid(),
+            date: new Date().toISOString(),
+            title,
+            content,
+            user: userId,
+            reactions: { thumbsUp: 0, hooray: 0, heart: 0, rocket: 0, eyes: 0 },
+          },
+        };
+      },
+    },
+    postUpdated(state, action) {
+      const { id, title, content } = action.payload;
+      const existingPost = state.posts.find((post) => post.id === id);
+      if (existingPost) {
+        existingPost.title = title;
+        existingPost.content = content;
+      }
+    },
+    reactionAdded(state, action) {
+      const { postId, reaction } = action.payload;
+      const existingPost = state.find((post) => post.id === postId);
+      if (existingPost) {
+        existingPost.reactions[reaction]++;
+      }
+    },
+  },
+  extraReducers(builder) {
+    builder
+      .addCase(fetchPosts.pending, (state, action) => {
+        state.status = "loading";
+      })
+      .addCase(fetchPosts.fulfilled, (state, action) => {
+        state.status = "succeeded";
+        // Add any fetched posts to the array
+        console.log(state.posts, action.payload);
+        state.posts = state.posts.concat(action.payload);
+      })
+      .addCase(fetchPosts.rejected, (state, action) => {
+        state.status = "failed";
+        state.error = action.error.message;
+      });
+
+    builder.addCase(addNewPost.fulfilled, (state, action) => {
+      // We can directly add the new post object to our posts array
+      state.posts.push(action.payload);
+    });
+  },
+});
+
+export const { postAdded, postUpdated, reactionAdded } = postsSlice.actions;
+
+// Maybe you will be confused, the first posts are posts created in Store.js, and the second posts are slices.
+export const selectAllPosts = (state) => state.posts.posts;
+
+export const selectPostById = (state, postId) =>
+  state.posts.posts.find((post) => post.id === postId);
+
+export const fetchPosts = createAsyncThunk("posts/fetchPosts", async () => {
+  const response = await axios.get("https://7c5t2c-5000.csb.app/posts");
+  return response.data;
+});
+
+export const addNewPost = createAsyncThunk(
+  "posts/addNewPost",
+  // The payload creator receives the partial `{title, content, user}` object
+  async (initialPost) => {
+    // We send the initial data to the fake API server
+    const response = await axios.post(
+      "https://7c5t2c-5000.csb.app/posts",
+      initialPost,
+    );
+    // The response includes the complete post object, including unique ID
+    return response.data;
+  },
+);
+
+export default postsSlice.reducer;
+
+  ```
+
+  But we still cannot create post because we didn't passing for handling emot, id dll.

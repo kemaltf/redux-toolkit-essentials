@@ -70,12 +70,17 @@ const postsSlice = createSlice({
         state.status = "failed";
         state.error = action.error.message;
       });
+
+    builder.addCase(addNewPost.fulfilled, (state, action) => {
+      // We can directly add the new post object to our posts array
+      state.posts.push(action.payload);
+    });
   },
 });
 
 export const { postAdded, postUpdated, reactionAdded } = postsSlice.actions;
 
-// Maybe you will be confused, the first posts are posts created automatically by Redux (which taken from the names are slice posts), the second posts are slices.
+// Maybe you will be confused, the first posts are posts created in Store.js, and the second posts are slices.
 export const selectAllPosts = (state) => state.posts.posts;
 
 export const selectPostById = (state, postId) =>
@@ -85,5 +90,19 @@ export const fetchPosts = createAsyncThunk("posts/fetchPosts", async () => {
   const response = await axios.get("https://7c5t2c-5000.csb.app/posts");
   return response.data;
 });
+
+export const addNewPost = createAsyncThunk(
+  "posts/addNewPost",
+  // The payload creator receives the partial `{title, content, user}` object
+  async (initialPost) => {
+    // We send the initial data to the fake API server
+    const response = await axios.post(
+      "https://7c5t2c-5000.csb.app/posts",
+      initialPost,
+    );
+    // The response includes the complete post object, including unique ID
+    return response.data;
+  },
+);
 
 export default postsSlice.reducer;
