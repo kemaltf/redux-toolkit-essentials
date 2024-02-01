@@ -748,3 +748,216 @@ export const PostAuthor = ({ userId }) => {
 
 We can now import the `PostAuthor` component into both `PostsList.js` and `SinglePostPage.js`, and render it as <`PostAuthor userId={post.user} />`, and every time we add a post entry, the selected user's name should show up inside of the rendered post.
 
+# More Post Feature
+
+## Storing dates for posts
+
+Social media feeds are typically sorted by when the post was created, and show us the post creation time as a relative description like "5 hours ago". In order to do that, we need to start tracking a date field for our post entries.
+
+Like with the post.user field, we'll update our postAdded prepare callback to make sure that post.date is always included when the action is dispatched. However, it's not another parameter that will be passed in. We want to always use the exact timestamp from when the action is dispatched, so we'll let the prepare callback handle that itself.
+
+> Redux actions and state should only contain plain JS values like objects, arrays, and primitives. Don't put class instances, functions, or other non-serializable values into Redux!.
+
+Since we can't just put a Date class instance into the Redux store, we'll track the post.date value as a timestamp string: 
+``` js
+// features/posts/postsSlice.js
+    postAdded: {
+      reducer(state, action) {
+        state.push(action.payload)
+      },
+      prepare(title, content, userId) {
+        return {
+          payload: {
+            id: nanoid(),
+            date: new Date().toISOString(),
+            title,
+            content,
+            user: userId,
+          },
+        }
+      },
+    },
+```
+
+we need to show the relative timestamp description in both our `<PostsList>` and `<SinglePostPage>` components. We'll add a `<TimeAgo>` component to handle formatting a timestamp string as a relative description. 
+
+Libraries like `date-fns` have some useful utility functions for parsing and formatting dates, which we can use here:
+
+``` js
+import React from 'react'
+import { parseISO, formatDistanceToNow } from 'date-fns'
+
+export const TimeAgo = ({ timestamp }) => {
+  let timeAgo = ''
+  if (timestamp) {
+    const date = parseISO(timestamp)
+    const timePeriod = formatDistanceToNow(date)
+    timeAgo = `${timePeriod} ago`
+  }
+
+  return (
+    <span title={timestamp}>
+      &nbsp; <i>{timeAgo}</i>
+    </span>
+  )
+}
+```
+
+##  Sorting the Posts List
+
+Our `<PostsList>` is currently showing all the posts in the same order the posts are kept in the Redux store. Our example has the oldest post first, and any time we add a new post, it gets added to the end of the posts array. **That means the newest post is always at the bottom of the page.**
+
+In theory, since we know that the state.posts array is already sorted, we could just reverse the list. But, it's better to go ahead and sort it ourselves just to be sure.
+
+Since `array.sort()` mutates the existing array, we need to make a copy of `state.posts` and sort that copy. We know that our post.date fields are being kept as date timestamp strings, and we can directly compare those to sort the posts in the right order:
+
+``` js
+// features/posts/PostsList.js
+// Sort posts in reverse chronological order by datetime string
+// slice() is a method on array objects in JavaScript.
+// This method is used to create a copy of some or all of the array elements. The method has two optional parameters: start and end. 
+// If no parameters are given, slice() will create a copy of the entire array.
+// Sort function accept comparation function in the parameter
+// a and b is two variable that we will compare
+// if b > a it will return +
+// if b = a it will return 0
+// if b < a it will return -
+// and sort function will rearange based on the result.
+const orderedPosts = posts.slice().sort((a, b) => b.date.localeCompare(a.date))
+
+const renderedPosts = orderedPosts.map(post => {
+  return (
+   {/* */}
+```
+
+We also need to add the `date` field to `initialState` in `postsSlice.js`. We'll use `date-fns `here again to subtract minutes from the current date/time so they differ from each other.
+
+``` js
+// features/posts/postsSlice.js
+import { createSlice, nanoid } from '@reduxjs/toolkit'
+import { sub } from 'date-fns'
+
+const initialState = [
+  {
+    // omitted fields
+    content: 'Hello!',
+    date: sub(new Date(), { minutes: 10 }).toISOString()
+  },
+  {
+    // omitted fields
+    content: 'More text',
+    date: sub(new Date(), { minutes: 5 }).toISOString()
+  }
+]
+```
+
+Add `<TimeAgo>` component:
+``` js
+// PostList.js
+const renderedPosts = orderedPosts
+    ? orderedPosts.map((post) => (
+        <article className="post-excerpt" key={post.id}>
+          <h3>{post.title}</h3>
+          <PostAuthor userId={post.user} />
+          <TimeAgo timestamp={post.date} />
+          <p className="post-content">{post.content.substring(0, 100)}</p>{" "}
+          <Link to={`/posts/${post.id}`} className="button muted-button">
+            View Post
+          </Link>
+        </article>
+      ))
+    : null;
+```
+
+## Post Reaction Buttons
+
+We'll add a row of emoji reaction buttons at the bottom of each post in `<PostsList>` and `<SinglePostPage>`. Every time a user clicks one of the reaction buttons, we'll need to update a matching counter field for that post in the Redux store. Since the reaction counter data is in the Redux store, switching between different parts of the app should consistently show the same values in any component that uses that data.
+
+``` js
+// features/posts/ReactionButtons.js
+import React from 'react'
+
+const reactionEmoji = {
+  thumbsUp: '👍',
+  hooray: '🎉',
+  heart: '❤️',
+  rocket: '🚀',
+  eyes: '👀'
+}
+
+export const ReactionButtons = ({ post }) => {
+  const reactionButtons = Object.entries(reactionEmoji).map(([name, emoji]) => {
+    return (
+      <button key={name} type="button" className="muted-button reaction-button">
+        {emoji} {post.reactions[name]}
+      </button>
+    )
+  })
+
+  return <div>{reactionButtons}</div>
+}
+```
+
+We don't yet have a `post.reactions` field in our data, so we'll need to update the `initialState` post objects and our `postAdded` prepare callback function to make sure that every post has that data inside, like reactions: `{thumbsUp: 0, hooray: 0, heart: 0, rocket: 0, eyes: 0}`.
+
+Now, we can define a new reducer that will handle updating the reaction count for a post when a user clicks the reaction button.
+
+Like with editing posts, we need to know the ID of the post, and which reaction button the user clicked on. We'll have our `action.payload` be an object that looks like `{id, reaction}`. The reducer can then find the right post object, and update the correct reactions field.
+
+``` js
+const postsSlice = createSlice({
+  name: 'posts',
+  initialState,
+  reducers: {
+    reactionAdded(state, action) {
+      const { postId, reaction } = action.payload
+      const existingPost = state.find(post => post.id === postId)
+      if (existingPost) {
+        existingPost.reactions[reaction]++
+      }
+    }
+    // other reducers
+  }
+})
+
+export const { postAdded, postUpdated, reactionAdded } = postsSlice.actions
+```
+
+As we've seen already, createSlice lets us write "mutating" logic in our reducers. If we weren't using createSlice and the Immer library, the line existingPost.reactions[reaction]++ would indeed mutate the existing post.reactions object, and this would probably cause bugs elsewhere in our app because we didn't follow the rules of reducers. But, since we are using createSlice, we can write this more complex update logic in a simpler way, and let Immer do the work of turning this code into a safe immutable update.
+
+Notice that our action object just contains the minimum amount of information needed to describe what happened. We know which post we need to update, and which reaction name was clicked on. We could have calculated the new reaction counter value and put that in the action, but it's always better to keep the action objects as small as possible, and do the state update calculations in the reducer. This also means that reducers can contain as much logic as necessary to calculate the new state.
+
+Now we need to dispatch the action
+
+```js
+// features/posts/ReactionButtons.jsx
+import React from 'react'
+import { useDispatch } from 'react-redux'
+
+import { reactionAdded } from './postsSlice'
+
+//..
+
+export const ReactionButtons = ({ post }) => {
+  const dispatch = useDispatch()
+
+  const reactionButtons = Object.entries(reactionEmoji).map(([name, emoji]) => {
+    return (
+      <button
+        key={name}
+        type="button"
+        className="muted-button reaction-button"
+        onClick={() =>
+          dispatch(reactionAdded({ postId: post.id, reaction: name }))
+        }
+      >
+        {emoji} {post.reactions[name]}
+      </button>
+    )
+  })
+
+  return <div>{reactionButtons}</div>
+}
+
+```
+
