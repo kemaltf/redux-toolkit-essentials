@@ -23,6 +23,7 @@ I suggest you to read this before we start this project:
 9. [Conventional state (one way data flow) vs Redux](https://redux.js.org/tutorials/essentials/part-1-overview-concepts#redux-application-data-flow)
 
 # What we are going to make?
+=======
 The sample project we'll look at is a small counter application that lets us add or subtract from a number as we click buttons.
 
 # Rule of reducer
@@ -30,6 +31,10 @@ Reducers must always follow some special rules:
 1. They should only calculate the new state value based on the state and action arguments
 2. They are not allowed to modify the existing state. Instead, they must make immutable updates, by copying the existing state and making changes to the copied values.
 3. They must not do any asynchronous logic or other "side effects"
+
+3-social-media-app-redux-toolkit
+1. The sample project we'll look at is a small counter application that lets us add or subtract from a number as we click buttons.
+2. Simple social media with Redux
 
 In Redux, our reducers are never allowed to mutate the original / current state values!
 ``` js
