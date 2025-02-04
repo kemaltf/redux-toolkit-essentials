@@ -3,6 +3,7 @@ import { PostsList } from "./features/posts/PostList";
 import { SinglePostPage } from "./features/posts/SinglePostPage";
 import { Navbar } from "./features/navbar/Navbar";
 import { EditPostForm } from "./features/posts/EditPostForm";
+
 import "./styles.css";
 import {
   BrowserRouter as Router,
